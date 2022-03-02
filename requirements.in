@@ -1,0 +1,4 @@
+azure-servicebus>=0.50.1
+pycurl>=7.43.0
+requests>=2.10.0
+google-cloud-storage>=0.21.0
