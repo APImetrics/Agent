@@ -1,0 +1,19 @@
+version: '3.8'
+
+serices:
+  apimagent:
+    image: apim-agent
+    build:
+      context: .
+      dockerfile: dockerfile
+    volumes:
+      - ${GOOGLE_APPLICATION_CREDENTIALS}:/var/google_creds.json
+      - ${APIM_CONFIG_FILE}:/var/apimetrics_agent.ini
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/var/google_creds.json
+    deploy:
+      restart_policy:
+        condition: always
+        delay: 30s
+        window: 120s
+    command: python3 -m apimetrics_agent -c /var/apimetrics_agent.ini
