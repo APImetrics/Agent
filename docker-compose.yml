@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   apimagent:
-    image: gcr.io/apimetrics/agent:latest
+    image: apimetrics/agent:latest
     volumes:
       - ${GOOGLE_APPLICATION_CREDENTIALS}:/var/google_creds.json
       - ${APIM_CONFIG_FILE}:/var/apimetrics_agent.ini
