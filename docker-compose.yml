@@ -10,7 +10,7 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=/var/google_creds.json
     deploy:
       restart_policy:
-        condition: always
+        condition: any
         delay: 30s
         window: 120s
     command: python3 -m apimetrics_agent -c /var/apimetrics_agent.ini
