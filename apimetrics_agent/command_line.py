@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from __future__ import print_function
+import datetime as dt
 import logging
 import os
 import json
@@ -101,18 +102,30 @@ def listen(config):
         config.azure.connection_string, config.azure.taskqueue
     )
 
-    while True:
-        logger.info("Creating receiver for %s", config.azure.taskqueue)
+    last_message = dt.datetime.utcnow()
+    diff = 0
+    while diff < 300:
+        logger.info(
+            "Last msg %s - creating receiver for %s", diff, config.azure.taskqueue
+        )
         with queue_client.get_receiver(idle_timeout=30) as messages:
+            got_msg = False
             for message in messages:  # pylint: disable=not-an-iterable
+                got_msg = True
                 definiton = extract_defintion(message)
                 if definiton:
-                    logger.info(
-                        "Request received for %s",
-                        definiton.get("request", {}).get("url", "").split("?")[0]
-                        or "?",
+                    url, _, _ = (
+                        definiton.get("request", {}).get("url", "").partition("?")
                     )
+                    logger.info("Request received for %s", url)
                     handle_request(config, definiton, complete_cb=message.complete)
+
+            now = dt.datetime.utcnow()
+            diff = (now - last_message).total_seconds()
+            if got_msg:
+                last_message = now
+            else: 
+                logger.info("... no message")
 
 
 def run(config):

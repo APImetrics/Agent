@@ -83,7 +83,10 @@ class APImetricsThread(object):
                 pass
 
         res = self.send_result_to_gae(result, test_key_str)
-        logger.info("Got response %d %s", res.status_code, res.reason)
+        if res:
+            logger.info("Got response %d %s", res.status_code, res.reason)
+        else:
+            logger.warning("No response for send_result_to_gae")
         # logger.debug(res.data) #read(decode_content=True))
 
     def validate_data(self, output):
@@ -103,9 +106,9 @@ class APImetricsThread(object):
         session = requests.Session()
         retries = Retry(
             total=5,
-            backoff_factor=1,
+            backoff_factor=0.5,
             method_whitelist=["POST"],
-            status_forcelist=[500, 501, 502, 503, 504],
+            status_forcelist=[429, 500, 501, 502, 503, 504],
         )
         session.mount(self.config.host_url, HTTPAdapter(max_retries=retries))
 
