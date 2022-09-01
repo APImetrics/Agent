@@ -104,14 +104,13 @@ def listen(config):
 
     last_message = dt.datetime.utcnow()
     diff = 0
-    while diff < 300:
+    while diff < (60 * 15):
         logger.info(
             "Last msg %s - creating receiver for %s", diff, config.azure.taskqueue
         )
-        with queue_client.get_receiver(idle_timeout=30) as messages:
-            got_msg = False
+        with queue_client.get_receiver(idle_timeout=60*5) as messages:
             for message in messages:  # pylint: disable=not-an-iterable
-                got_msg = True
+                last_message = dt.datetime.utcnow()
                 definiton = extract_defintion(message)
                 if definiton:
                     url, _, _ = (
@@ -119,13 +118,11 @@ def listen(config):
                     )
                     logger.info("Request received for %s", url)
                     handle_request(config, definiton, complete_cb=message.complete)
+            else: 
+                logger.info("... no message")
 
             now = dt.datetime.utcnow()
             diff = (now - last_message).total_seconds()
-            if got_msg:
-                last_message = now
-            else: 
-                logger.info("... no message")
 
 
 def run(config):
