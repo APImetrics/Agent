@@ -1,5 +1,7 @@
 import logging
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from . import VERSION
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -22,8 +24,17 @@ def _register_agent_with_gae(config):
         "version": VERSION,
     }
 
+    session = requests.Session()
+    retries = Retry(
+        total=5,
+        backoff_factor=0.5,
+        method_whitelist=["POST"],
+        status_forcelist=[429, 500, 501, 502, 503, 504],
+    )
+    session.mount(config.host_url, HTTPAdapter(max_retries=retries))
+
     logger.info("Calling %s %s %s proxy: %s", "POST", url, repr(data), config.proxies)
-    return requests.post(url, json=data, proxies=config.proxies, verify=False)
+    return session.post(url, json=data, proxies=config.proxies, verify=False, timeout=15.0)
 
 
 def register_agent_with_gae(config):

@@ -113,7 +113,7 @@ class APImetricsThread(object):
         session.mount(self.config.host_url, HTTPAdapter(max_retries=retries))
 
         logger.info("Calling %s %s proxy: %s", "POST", url, self.config.proxies)
-        return session.post(url, json=result, proxies=self.config.proxies, verify=False)
+        return session.post(url, json=result, proxies=self.config.proxies, verify=False, timeout=15.0)
 
 
 def handle_request(config, definition, complete_cb=None):

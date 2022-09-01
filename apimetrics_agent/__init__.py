@@ -3,7 +3,7 @@ from __future__ import print_function
 import logging
 import os
 
-VERSION = "0.12.4"
+VERSION = "0.12.5"
 
 # Initialize logger
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
