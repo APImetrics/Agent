@@ -6,7 +6,8 @@ import os
 import json
 import sys
 import argparse
-from azure.servicebus import QueueClient
+
+from azure.servicebus import ServiceBusClient
 from .config import Config
 from .register import register_agent_with_gae
 from .thread import handle_request
@@ -60,73 +61,58 @@ def main():
         run(config=config)
 
 
-def get_callback(listener, msg):
-    msg_id = (
-        msg.broker_properties.get("MessageId", "??")
-        if msg and msg.broker_properties
-        else "?"
-    )
-
-    def cb_func(*args, **kwargs):
-        logger.info("Success callback for msg %s: %s %s", msg_id, args, kwargs)
-        return listener.mark_message_as_complete(msg)
-
-    return cb_func
-
-
-def get_error_callback(listener, msg):
-    msg_id = (
-        msg.broker_properties.get("MessageId", "??")
-        if msg and msg.broker_properties
-        else "?"
-    )
-
-    def cb_func(*args, **kwargs):
-        logger.warning("Error callback for msg %s: %s %s", msg_id, args, kwargs)
-
-    return cb_func
-
-
-def extract_defintion(msg):
-    logger.debug("extract_defintion %s %s", msg, msg.body)
-    if msg and msg.body is not None:
-        bytes_arr = next(msg.body)
-        json_string = bytes_arr.decode("utf-8")
+def extract_defintion(body):
+    logger.debug("extract_defintion")
+    try:
+        json_string = body.decode("utf-8")
         output = json.loads(json_string)
         return output
+    except Exception as ex:
+        logger.error("Failed to parse message body: %s", ex)
+        return None
 
 
 def listen(config):
-
-    queue_client = QueueClient.from_connection_string(
-        config.azure.connection_string, config.azure.taskqueue
-    )
+    servicebus_conn_str = config.azure.connection_string
+    queue_name = config.azure.taskqueue
 
     last_message = dt.datetime.utcnow()
     diff = 0
-    while diff < (60 * 15):
-        logger.info(
-            "Last msg %s - creating receiver for %s", diff, config.azure.taskqueue
-        )
-        with queue_client.get_receiver(idle_timeout=60*5) as messages:
-            for message in messages:  # pylint: disable=not-an-iterable
-                last_message = dt.datetime.utcnow()
-                definiton = extract_defintion(message)
-                if definiton:
-                    url, _, _ = (
-                        definiton.get("request", {}).get("url", "").partition("?")
-                    )
-                    logger.info("Request received for %s", url)
-                    handle_request(config, definiton, complete_cb=message.complete)
-            else: 
-                logger.info("... no message")
 
-            now = dt.datetime.utcnow()
-            diff = (now - last_message).total_seconds()
+    with ServiceBusClient.from_connection_string(servicebus_conn_str) as sb_client:
+        receiver = sb_client.get_queue_receiver(queue_name=queue_name, max_wait_time=300)
+        with receiver:
+            logger.info("Listening on ServiceBus queue '%s'", queue_name)
+            while diff < (60 * 15):
+                batch = receiver.receive_messages(max_message_count=1, max_wait_time=5)
+                found = False
+                for message in batch:
+                    found = True
+                    last_message = dt.datetime.utcnow()
+                    logger.info("Received message from %s", queue_name)
+                    definiton = extract_defintion(message.body)
+                    if definiton:
+                        url, _, _ = (
+                            definiton.get("request", {}).get("url", "").partition("?")
+                        )
+                        logger.info("Request received for %s", url)
+                        handle_request(
+                            config,
+                            definiton,
+                            complete_cb=message.complete  # This is not callable in v7.x
+                        )
+                    try:
+                        receiver.complete_message(message)
+                    except Exception as ex:
+                        logger.error("Failed to complete message: %s", ex)
+                if not found:
+                    logger.info("... no message")
+
+                now = dt.datetime.utcnow()
+                diff = (now - last_message).total_seconds()
 
 
 def run(config):
-
     try:
         register_agent_with_gae(config)
     except Exception as ex:  # pylint: disable=W0703
